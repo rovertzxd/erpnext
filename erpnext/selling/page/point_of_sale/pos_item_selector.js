@@ -48,6 +48,7 @@ erpnext.PointOfSale.ItemSelector = class {
 
 		this.get_items({}).then(({message}) => {
 			this.render_item_list(message.items);
+			this.items = message.items;
 		});
 	}
 
@@ -68,9 +69,11 @@ erpnext.PointOfSale.ItemSelector = class {
 
 	render_item_list(items) {
 		this.$items_container.html('');
-
-		items.forEach(item => {
-			const item_html = this.get_item_html(item);
+		items
+		.filter(item => item.variant_of == undefined)
+		.forEach(item => {
+			let item_html;
+			item_html = this.get_item_html(item);
 			this.$items_container.append(item_html);
 		});
 	}
@@ -117,6 +120,7 @@ erpnext.PointOfSale.ItemSelector = class {
 
 		return (
 			`<div class="item-wrapper"
+				data-has-variants=${escape(item.has_variants)}
 				data-item-code="${escape(item.item_code)}" data-serial-no="${escape(serial_no)}"
 				data-batch-no="${escape(batch_no)}" data-uom="${escape(stock_uom)}"
 				data-rate="${escape(price_list_rate || 0)}"
@@ -250,7 +254,36 @@ erpnext.PointOfSale.ItemSelector = class {
 			let serial_no = unescape($item.attr('data-serial-no'));
 			let uom = unescape($item.attr('data-uom'));
 			let rate = unescape($item.attr('data-rate'));
+			let has_variants = unescape($item.attr('data-has-variants'));
 
+			if (has_variants == '1') {
+				let variants = me.items.filter(item => item.variant_of == item_code);
+				console.log(item_code, me.items);
+				let d = new frappe.ui.Dialog({
+					title: 'Select Variant',
+					fields: [
+						{
+							label: 'Item',
+							fieldname: 'item',
+							fieldtype: 'Select',
+							options: variants.map(item => item.item_name).join('\n')
+						},
+					],
+					primary_action_label: 'Select',
+					primary_action(values) {
+						let { item_code, batch_no, serial_no, uom, rate } = variants.find(item => item.item_name == values.item);
+						me.events.item_selected({
+							field: 'qty',
+							value: "+1",
+							item: { item_code, batch_no, serial_no, uom, rate }
+						});
+						me.search_field.set_focus();
+						d.hide();
+					}
+				});
+				d.show();
+				return;
+			}
 			// escape(undefined) returns "undefined" then unescape returns "undefined"
 			batch_no = batch_no === "undefined" ? undefined : batch_no;
 			serial_no = serial_no === "undefined" ? undefined : serial_no;

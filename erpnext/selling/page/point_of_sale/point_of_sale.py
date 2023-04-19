@@ -114,27 +114,53 @@ def get_items(start, page_length, price_list, item_group, pos_profile, search_te
 
 	items_data = frappe.db.sql(
 		"""
-		SELECT
-			item.name AS item_code,
-			item.item_name,
-			item.description,
-			item.stock_uom,
-			item.image AS item_image,
-			item.is_stock_item
-		FROM
-			`tabItem` item {bin_join_selection}
-		WHERE
-			item.disabled = 0
-			AND item.has_variants = 0
-			AND item.is_sales_item = 1
-			AND item.is_fixed_asset = 0
-			AND item.item_group in (SELECT name FROM `tabItem Group` WHERE lft >= {lft} AND rgt <= {rgt})
-			AND {condition}
-			{bin_join_condition}
-		ORDER BY
-			item.name asc
-		LIMIT
-			{page_length} offset {start}""".format(
+		WITH variants AS (
+			SELECT
+				item.name AS item_code,
+				item.item_name,
+				item.description,
+				item.stock_uom,
+				item.image AS item_image,
+				item.is_stock_item,
+				item.variant_of,
+				item.has_variants
+			FROM
+				`tabItem` item {bin_join_selection}
+			WHERE
+				item.disabled = 0
+				AND item.has_variants = 0
+				AND item.is_sales_item = 1
+				AND item.is_fixed_asset = 0
+				AND item.item_group in (SELECT name FROM `tabItem Group` WHERE lft >= {lft} AND rgt <= {rgt})
+				AND {condition}
+				{bin_join_condition}
+		),
+		template_items AS (
+			SELECT
+				template.name AS item_code,
+				template.item_name,
+				template.description,
+				template.stock_uom,
+				template.image AS item_image,
+				template.is_stock_item,
+				template.variant_of,
+				template.has_variants
+			FROM
+				`tabItem` template
+				INNER JOIN (
+					SELECT DISTINCT variant_of
+					FROM variants
+					WHERE variant_of IS NOT NULL
+				) variant ON template.item_code = variant.variant_of
+		)
+		SELECT * FROM (
+			SELECT *
+			FROM variants
+			UNION
+			SELECT * FROM template_items
+		) items
+		ORDER BY items.item_code ASC
+		""".format(
 			start=cint(start),
 			page_length=cint(page_length),
 			lft=cint(lft),

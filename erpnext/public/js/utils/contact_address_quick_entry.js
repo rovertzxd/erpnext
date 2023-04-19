@@ -33,13 +33,13 @@ frappe.ui.form.ContactAddressQuickEntryForm = class ContactAddressQuickEntryForm
 		var variant_fields = [{
 			fieldtype: "Section Break",
 			label: __("Primary Contact Details"),
-			collapsible: 1
 		},
 		{
-			label: __("Email Id"),
+			label: __("Email Address"),
 			fieldname: "email_address",
 			fieldtype: "Data",
 			options: "Email",
+			reqd: true
 		},
 		{
 			fieldtype: "Column Break"
@@ -47,7 +47,8 @@ frappe.ui.form.ContactAddressQuickEntryForm = class ContactAddressQuickEntryForm
 		{
 			label: __("Mobile Number"),
 			fieldname: "mobile_number",
-			fieldtype: "Data"
+			fieldtype: "Data",
+			options: "Phone"
 		},
 		{
 			fieldtype: "Section Break",

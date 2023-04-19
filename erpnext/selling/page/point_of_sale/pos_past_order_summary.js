@@ -28,6 +28,8 @@ erpnext.PointOfSale.PastOrderSummary = class {
 						<div class="totals-container summary-container"></div>
 						<div class="label">${__('Payments')}</div>
 						<div class="payments-container summary-container"></div>
+						<div class="label d-none notes">${__('Notes')}</div>
+						<div class="notes-container summary-container"></div>
 						<div class="summary-btns"></div>
 					</div>
 				</div>
@@ -41,6 +43,7 @@ erpnext.PointOfSale.PastOrderSummary = class {
 		this.$items_container = this.$summary_container.find('.items-container');
 		this.$totals_container = this.$summary_container.find('.totals-container');
 		this.$payment_container = this.$summary_container.find('.payments-container');
+		this.$notes_container = this.$summary_container.find('.notes-container');
 		this.$summary_btns = this.$summary_container.find('.summary-btns');
 	}
 
@@ -184,7 +187,7 @@ erpnext.PointOfSale.PastOrderSummary = class {
 			// this.$summary_wrapper.addClass('d-none');
 		});
 
-		this.$summary_container.on('click', '.new-btn', () => {
+		this.$summary_container.on('click', '.show-btn', () => {
 			this.events.new_order();
 			this.toggle_component(false);
 			this.$component.find('.no-summary-placeholder').css('display', 'flex');
@@ -307,7 +310,7 @@ erpnext.PointOfSale.PastOrderSummary = class {
 
 	get_condition_btn_map(after_submission) {
 		if (after_submission)
-			return [{ condition: true, visible_btns: ['Print Receipt', 'Email Receipt', 'New Order'] }];
+			return [{ condition: true, visible_btns: ['Print Receipt', 'Email Receipt', 'Show Orders'] }];
 
 		return [
 			{ condition: this.doc.docstatus === 0, visible_btns: ['Edit Order', 'Delete Order'] },
@@ -332,6 +335,8 @@ erpnext.PointOfSale.PastOrderSummary = class {
 		this.attach_totals_info(doc);
 
 		this.attach_payments_info(doc);
+
+		this.attach_notes(doc);
 
 		const condition_btns_map = this.get_condition_btn_map(after_submission);
 
@@ -385,6 +390,33 @@ erpnext.PointOfSale.PastOrderSummary = class {
 			});
 			this.$payment_container.append(payment_dom);
 		}
+	}
+
+	attach_notes(doc) {
+		this.$notes_container.html('');
+		this.$summary_container.find('.label.notes').addClass('d-none');
+		frappe.call({
+			method: 'frappe.client.get_list',
+			args: {
+				doctype: 'Comment',
+				filters: [
+					['reference_doctype', '=', 'POS Invoice'],
+					['reference_name', '=', doc.name ],
+					['comment_type', '=', 'Comment']
+				],
+				fields: ['comment_by', 'creation', 'content']
+			}
+		}).then(({message}) => {
+			if (!message.length) { return }
+			this.$summary_container.find('.label.notes').removeClass('d-none');
+			message.forEach(comment => {
+				let date = frappe.datetime.prettyDate(comment.creation);
+				this.$notes_container.append(`
+					<i><b>${date}</b> by ${comment.comment_by}</i>
+					<p style="font-size: 1.2em;">${comment.content}</p>
+				`)
+			})
+		})
 	}
 
 	attach_totals_info(doc) {

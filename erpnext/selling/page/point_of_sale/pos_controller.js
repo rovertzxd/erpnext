@@ -146,7 +146,9 @@ erpnext.PointOfSale.Controller = class {
 		this.prepare_dom();
 		this.prepare_components();
 		this.prepare_menu();
-		this.make_new_invoice();
+		this.make_new_invoice().then(() => {
+			this.toggle_recent_order_list(this.settings.allow_checkout)
+		});
 	}
 
 	prepare_dom() {
@@ -188,7 +190,7 @@ erpnext.PointOfSale.Controller = class {
 		this.toggle_recent_order_list(show);
 	}
 
-	save_draft_invoice() {
+	save_draft_invoice(delivery_method, comment) {
 		if (!this.$components_wrapper.is(":visible")) return;
 
 		if (this.frm.doc.items.length == 0) {
@@ -199,13 +201,29 @@ erpnext.PointOfSale.Controller = class {
 			frappe.utils.play_sound("error");
 			return;
 		}
-
-		this.frm.save(undefined, undefined, undefined, () => {
+		if (delivery_method) {
+			this.frm.set_value('delivery_method', delivery_method)
+		}
+		function add_comment(comment, name) {
+			if (!comment) { return Promise.resolve(); }
+			return frappe.call({
+				method: 'frappe.desk.form.utils.add_comment',
+				type: 'POST',
+				args: {
+					reference_doctype: 'POS Invoice',
+					reference_name: name,
+					content: comment,
+					comment_email: frappe.user.name,
+					comment_by: frappe.user.full_name()
+				}
+			})
+		}
+		this.frm.save(undefined, ({docs}) => add_comment(comment, docs[0].name), undefined, () => {
 			frappe.show_alert({
 				message: __("There was an error saving the document."),
 				indicator: 'red'
 			});
-			frappe.utils.play_sound("error");
+			frappe.utils.play_sound("error");	
 		}).then(() => {
 			frappe.run_serially([
 				() => frappe.dom.freeze(),
@@ -255,7 +273,35 @@ erpnext.PointOfSale.Controller = class {
 
 				numpad_event: (value, action) => this.update_item_field(value, action),
 
-				checkout: () => this.save_and_checkout(),
+				checkout: () => {
+					if (this.settings.allow_checkout) {
+						this.save_and_checkout()
+					} else {
+						let dialog = new frappe.ui.Dialog({
+							title: 'Choose Delivery Method',
+							fields: [
+								{
+									label: 'Delivery Method',
+									fieldname: 'delivery_method',
+									fieldtype: 'Select',
+									options: 'Pickup\nDelivery',
+									default: 'Pickup'
+								},
+								{
+									label: 'Notes',
+									fieldname: 'comment',
+									fieldtype: 'Text'
+								}
+							],
+							primary_action_label: 'Save',
+							primary_action: ({delivery_method, comment}) =>  {
+								dialog.hide();
+								this.save_draft_invoice(delivery_method, comment)
+							}
+						})
+						dialog.show();
+					}
+				},
 
 				edit_cart: () => this.payment.edit_cart(),
 
@@ -415,7 +461,7 @@ erpnext.PointOfSale.Controller = class {
 					frappe.run_serially([
 						() => frappe.dom.freeze(),
 						() => this.make_new_invoice(),
-						() => this.item_selector.toggle_component(true),
+						() => this.toggle_recent_order_list(true),
 						() => frappe.dom.unfreeze(),
 					]);
 				}
